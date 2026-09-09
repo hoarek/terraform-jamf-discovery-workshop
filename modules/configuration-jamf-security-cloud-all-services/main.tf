@@ -136,34 +136,6 @@ resource "jamfplatform_device_group" "all_mobile_devices" {
 # edit the configuration profile in Jamf Pro.
 ###############################################################################
 
-# action blocks for jamfplatform_security_cloud_activation_profile_deploy live in
-# the root module — OpenTofu only allows action blocks at the root level, not
-# inside child modules. See the root main.tf for the deploy actions and trigger.
-
-# Actions run only when something triggers them, so the trigger is what gates
-# deployment — the action blocks above are inert without it.
-#
-# Two inputs, doing two different jobs, and they are not interchangeable.
-#
-# deploy_to_jamf_pro drives count, and has to be a value that is known at plan time.
-# uem_connect_id is a computed attribute of a resource in another module, so on a
-# first apply it is unknown during plan, and a count depending on it fails outright
-# with "The count value depends on resource attributes that cannot be determined
-# until apply". The root therefore passes var.include_jsc_uemc here, which is a plain
-# root variable and always known.
-#
-# uem_connect_id then carries the ordering. Deploying requires a UEM Connect
-# integration that is connected to Jamf Pro, and nothing in the action's own
-# arguments names one; referencing the connector ID makes that a data dependency
-# rather than a depends_on reaching across modules. Being unknown at plan time is
-# fine for an attribute, which is exactly why the gate and the dependency are split.
-#
-# input also carries the activation code, so that a replaced activation profile — any
-# edit other than `paused` mints a new one — changes this resource and fires
-# after_update, redeploying rather than leaving Jamf Pro holding a configuration
-# profile for a code that no longer works. Re-running a deployment is safe: it
-# updates the configuration profile Jamf Security Cloud already created instead of
-# adding a second one, and recreates it if it was deleted in Jamf Pro.
 ###############################################################################
 # Jamf Trust mobile app
 #
@@ -202,4 +174,3 @@ resource "jamfplatform_pro_mobile_device_app" "jamf_trust" {
   }
 }
 
-# The terraform_data trigger that fires the deploy actions has also moved to root.

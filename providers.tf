@@ -1,10 +1,6 @@
 ###############################################################################
 # Root provider requirements
 #
-# Terraform 1.14 is the floor because modules/configuration-jamf-security-cloud-
-# all-services drives jamfplatform_security_cloud_activation_profile_deploy from a
-# lifecycle { action_trigger }, and action blocks do not exist before 1.14.
-#
 # The jamfplatform version constraint is "~> 0.29": stable 0.29.0 shipped on
 # 2026-09-04 (provider PR #371), so the exact-pin workaround for pre-release
 # selection is no longer needed. Note: "~> 0.29" (two-part) allows any release
@@ -16,7 +12,7 @@
 ###############################################################################
 
 terraform {
-  required_version = ">= 1.14"
+  required_version = ">= 1.9"
   required_providers {
     jamfplatform = {
       source  = "Jamf-Concepts/jamfplatform"

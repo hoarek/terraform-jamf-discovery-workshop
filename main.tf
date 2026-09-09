@@ -108,69 +108,12 @@ module "configuration-jamf-security-cloud-jamf-pro" {
   }
 }
 
-# Pushing the activation profile's configuration profiles into Jamf Pro needs a UEM
-# Connect connector that is connected to Jamf Pro, and nothing in the deploy action's
-# arguments names one. Two inputs cover that, and they cannot be collapsed into one.
-#
-# deploy_to_jamf_pro answers whether a connector exists, and gets include_jsc_uemc
-# because the module drives a count with it: a count cannot depend on a value that is
-# still unknown during plan, which the connector's ID is on a first apply.
-#
-# uem_connect_id supplies the ordering, as a data dependency rather than a depends_on
-# reaching into another module. one() yields null when include_jsc_uemc is false — the
-# case where the module mints the activation profile and skips the deployment — so
-# coalesce turns that into the empty default.
 module "configuration-jamf-security-cloud-all-services" {
   count  = var.include_jsc_all_services == true ? 1 : 0
   source = "./modules/configuration-jamf-security-cloud-all-services"
 
-  deploy_to_jamf_pro = var.include_jsc_uemc
-  uem_connect_id     = coalesce(one(module.configuration-jamf-security-cloud-jamf-pro[*].uem_connect_id), "")
-
   providers = {
     jamfplatform.jpro = jamfplatform.jpro
-  }
-}
-
-# action blocks must be at root level — OpenTofu rejects them in child modules.
-# These deploy the activation profile's configuration profiles into Jamf Pro via
-# the two device groups created by the all-services module.
-action "jamfplatform_security_cloud_activation_profile_deploy" "macos" {
-  provider = jamfplatform.jpro
-
-  config {
-    activation_profile_code = one(module.configuration-jamf-security-cloud-all-services[*].activation_code)
-    os                      = "macos"
-    jamf_pro_group_ids      = [one(module.configuration-jamf-security-cloud-all-services[*].all_macs_jamf_pro_id)]
-  }
-}
-
-action "jamfplatform_security_cloud_activation_profile_deploy" "ios_supervised" {
-  provider = jamfplatform.jpro
-
-  config {
-    activation_profile_code = one(module.configuration-jamf-security-cloud-all-services[*].activation_code)
-    os                      = "ios_supervised"
-    jamf_pro_group_ids      = [one(module.configuration-jamf-security-cloud-all-services[*].all_mobile_devices_jamf_pro_id)]
-  }
-}
-
-resource "terraform_data" "jsc_deploy_to_jamf_pro" {
-  count = var.include_jsc_uemc && var.include_jsc_all_services ? 1 : 0
-
-  input = {
-    uem_connect_id          = coalesce(one(module.configuration-jamf-security-cloud-jamf-pro[*].uem_connect_id), "")
-    activation_profile_code = one(module.configuration-jamf-security-cloud-all-services[*].activation_code)
-  }
-
-  lifecycle {
-    action_trigger {
-      events = [after_create, after_update]
-      actions = [
-        action.jamfplatform_security_cloud_activation_profile_deploy.macos,
-        action.jamfplatform_security_cloud_activation_profile_deploy.ios_supervised,
-      ]
-    }
   }
 }
 
