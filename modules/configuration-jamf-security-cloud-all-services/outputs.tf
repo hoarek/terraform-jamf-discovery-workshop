@@ -10,9 +10,14 @@ output "activation_code" {
   sensitive   = true
 }
 
-output "deployed_to_jamf_pro" {
-  description = "Whether the activation profile's configuration profiles were pushed into Jamf Pro. False when UEM Connect is not deployed."
-  value       = length(terraform_data.deploy_to_jamf_pro) > 0
+output "all_macs_jamf_pro_id" {
+  description = "Jamf Pro smart group ID for the all-Macs device group. Consumed by the root module's deploy action."
+  value       = jamfplatform_device_group.all_macs.jamf_pro_id
+}
+
+output "all_mobile_devices_jamf_pro_id" {
+  description = "Jamf Pro smart group ID for the all-mobile-devices group. Consumed by the root module's deploy action."
+  value       = jamfplatform_device_group.all_mobile_devices.jamf_pro_id
 }
 
 # Both groups ship with a dummy serial-number criterion so a workshop apply reaches

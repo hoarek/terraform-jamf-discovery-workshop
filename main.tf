@@ -132,6 +132,48 @@ module "configuration-jamf-security-cloud-all-services" {
   }
 }
 
+# action blocks must be at root level — OpenTofu rejects them in child modules.
+# These deploy the activation profile's configuration profiles into Jamf Pro via
+# the two device groups created by the all-services module.
+action "jamfplatform_security_cloud_activation_profile_deploy" "macos" {
+  provider = jamfplatform.jpro
+
+  config {
+    activation_profile_code = one(module.configuration-jamf-security-cloud-all-services[*].activation_code)
+    os                      = "macos"
+    jamf_pro_group_ids      = [one(module.configuration-jamf-security-cloud-all-services[*].all_macs_jamf_pro_id)]
+  }
+}
+
+action "jamfplatform_security_cloud_activation_profile_deploy" "ios_supervised" {
+  provider = jamfplatform.jpro
+
+  config {
+    activation_profile_code = one(module.configuration-jamf-security-cloud-all-services[*].activation_code)
+    os                      = "ios_supervised"
+    jamf_pro_group_ids      = [one(module.configuration-jamf-security-cloud-all-services[*].all_mobile_devices_jamf_pro_id)]
+  }
+}
+
+resource "terraform_data" "jsc_deploy_to_jamf_pro" {
+  count = var.include_jsc_uemc && var.include_jsc_all_services ? 1 : 0
+
+  input = {
+    uem_connect_id          = coalesce(one(module.configuration-jamf-security-cloud-jamf-pro[*].uem_connect_id), "")
+    activation_profile_code = one(module.configuration-jamf-security-cloud-all-services[*].activation_code)
+  }
+
+  lifecycle {
+    action_trigger {
+      events = [after_create, after_update]
+      actions = [
+        action.jamfplatform_security_cloud_activation_profile_deploy.macos,
+        action.jamfplatform_security_cloud_activation_profile_deploy.ios_supervised,
+      ]
+    }
+  }
+}
+
 ###############################################################################
 # Jamf Protect
 ###############################################################################

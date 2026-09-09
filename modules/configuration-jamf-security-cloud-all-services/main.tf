@@ -136,25 +136,9 @@ resource "jamfplatform_device_group" "all_mobile_devices" {
 # edit the configuration profile in Jamf Pro.
 ###############################################################################
 
-action "jamfplatform_security_cloud_activation_profile_deploy" "macos" {
-  provider = jamfplatform.jpro
-
-  config {
-    activation_profile_code = jamfplatform_security_cloud_activation_profile.all_services.id
-    os                      = "macos"
-    jamf_pro_group_ids      = [jamfplatform_device_group.all_macs.jamf_pro_id]
-  }
-}
-
-action "jamfplatform_security_cloud_activation_profile_deploy" "ios_supervised" {
-  provider = jamfplatform.jpro
-
-  config {
-    activation_profile_code = jamfplatform_security_cloud_activation_profile.all_services.id
-    os                      = "ios_supervised"
-    jamf_pro_group_ids      = [jamfplatform_device_group.all_mobile_devices.jamf_pro_id]
-  }
-}
+# action blocks for jamfplatform_security_cloud_activation_profile_deploy live in
+# the root module — OpenTofu only allows action blocks at the root level, not
+# inside child modules. See the root main.tf for the deploy actions and trigger.
 
 # Actions run only when something triggers them, so the trigger is what gates
 # deployment — the action blocks above are inert without it.
@@ -218,21 +202,4 @@ resource "jamfplatform_pro_mobile_device_app" "jamf_trust" {
   }
 }
 
-resource "terraform_data" "deploy_to_jamf_pro" {
-  count = var.deploy_to_jamf_pro ? 1 : 0
-
-  input = {
-    uem_connect_id          = var.uem_connect_id
-    activation_profile_code = jamfplatform_security_cloud_activation_profile.all_services.id
-  }
-
-  lifecycle {
-    action_trigger {
-      events = [after_create, after_update]
-      actions = [
-        action.jamfplatform_security_cloud_activation_profile_deploy.macos,
-        action.jamfplatform_security_cloud_activation_profile_deploy.ios_supervised,
-      ]
-    }
-  }
-}
+# The terraform_data trigger that fires the deploy actions has also moved to root.
