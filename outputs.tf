@@ -96,6 +96,6 @@ output "jsc_activation_code_credential" {
 # devices. Jamf Security Cloud writes those profiles' descriptions, not Terraform, so
 # this output is where the follow-up step is stated.
 output "jsc_scope_groups_pending_criteria_removal" {
-  description = "Smart groups scoped to the deployed Jamf Security Cloud configuration profiles, each with the dummy criterion to remove in Jamf Pro to turn the deployment on. Null unless include_jsc_all_services is true."
-  value       = one(module.configuration-jamf-security-cloud-all-services[*].scope_groups_pending_criteria_removal)
+  description = "Smart groups scoped to the deployed Jamf Security Cloud configuration profiles, each with the dummy criterion to remove in Jamf Pro to turn the deployment on. Null unless include_jsc_all_services is true. JSON-encoded so the workflow can collect it with tofu output -raw."
+  value       = jsonencode(one(module.configuration-jamf-security-cloud-all-services[*].scope_groups_pending_criteria_removal))
 }
