@@ -12,6 +12,10 @@
 *.tfvars.json
 !example.tfvars.json
 
+# Apple service token files — these carry live credentials
+*.p7m
+*.vpptoken
+
 # Crash logs
 crash.log
 crash.*.log
