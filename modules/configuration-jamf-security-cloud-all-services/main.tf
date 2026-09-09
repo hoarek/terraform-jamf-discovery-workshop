@@ -159,6 +159,7 @@ resource "jamfplatform_pro_mobile_device_app" "jamf_trust" {
     name      = "Jamf Trust"
     version   = "0"
     bundle_id = "com.jamf.trust"
+    os_type   = "iOS"
   }
 
   scope = {

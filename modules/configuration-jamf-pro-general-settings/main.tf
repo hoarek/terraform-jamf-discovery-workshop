@@ -70,6 +70,12 @@ resource "jamfplatform_pro_self_service_macos_settings" "self_service_macos" {
 #   terraform import module.configuration-jamf-pro-general-settings.jamfplatform_pro_cloud_distribution_point.jcds singleton
 ###############################################################################
 
+import {
+  provider = jamfplatform.jpro
+  to       = jamfplatform_pro_cloud_distribution_point.jcds
+  id       = "singleton"
+}
+
 resource "jamfplatform_pro_cloud_distribution_point" "jcds" {
   provider = jamfplatform.jpro
 
