@@ -64,24 +64,17 @@ resource "jamfplatform_pro_self_service_macos_settings" "self_service_macos" {
 ###############################################################################
 # Distribution point
 #
-# Jamf Cloud tenants already have a cloud distribution point created by Jamf
-# before Terraform touches the tenant. Running apply on a fresh tenant will
-# create it; on an existing tenant it will conflict. Import first with:
-#   terraform import module.configuration-jamf-pro-general-settings.jamfplatform_pro_cloud_distribution_point.jcds singleton
+# Commented out: Jamf Cloud tenants already have a JCDS configured by Jamf and
+# the API rejects a second one with "JAMF_CLOUD is already configured". The
+# existing JCDS cannot be deleted from this tenant, so Terraform skips it.
 ###############################################################################
 
-import {
-  provider = jamfplatform.jpro
-  to       = jamfplatform_pro_cloud_distribution_point.jcds
-  id       = "singleton"
-}
-
-resource "jamfplatform_pro_cloud_distribution_point" "jcds" {
-  provider = jamfplatform.jpro
-
-  cdn_type = "JAMF_CLOUD"
-  master   = true
-}
+# resource "jamfplatform_pro_cloud_distribution_point" "jcds" {
+#   provider = jamfplatform.jpro
+#
+#   cdn_type = "JAMF_CLOUD"
+#   master   = true
+# }
 
 ###############################################################################
 # LAPS
