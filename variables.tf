@@ -470,3 +470,15 @@ variable "include_microsoft_psso" {
   type        = bool
   default     = false
 }
+
+variable "device_enrollment_token_content_filename" {
+  description = "Original filename of the uploaded ADE token, recorded by the onboarder for reference. Not consumed by Terraform."
+  type        = string
+  default     = ""
+}
+
+variable "volume_purchasing_service_token_content_filename" {
+  description = "Original filename of the uploaded VPP token, recorded by the onboarder for reference. Not consumed by Terraform."
+  type        = string
+  default     = ""
+}

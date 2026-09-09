@@ -157,10 +157,7 @@ resource "jamfplatform_pro_mobile_device_app" "jamf_trust" {
 
   general = {
     name                        = "Jamf Trust"
-    version                     = "0"
     bundle_id                   = "com.jamf.trust"
-    os_type                     = "iOS"
-    is_free                     = true
     deployment_type             = "Install Automatically/Prompt Users to Install"
     deploy_as_managed_app       = true
     keep_app_updated_on_devices = true
