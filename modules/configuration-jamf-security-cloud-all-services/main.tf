@@ -156,13 +156,9 @@ resource "jamfplatform_pro_mobile_device_app" "jamf_trust" {
   provider = jamfplatform.jpro
 
   general = {
-    name                        = "Jamf Trust"
-    version                     = "0"
-    bundle_id                   = "com.jamf.trust"
-    deployment_type             = "Install Automatically/Prompt Users to Install"
-    deploy_as_managed_app       = true
-    keep_app_updated_on_devices = true
-    take_over_management        = false
+    name      = "Jamf Trust"
+    version   = "0"
+    bundle_id = "com.jamf.trust"
   }
 
   scope = {
