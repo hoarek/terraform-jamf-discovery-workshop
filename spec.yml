@@ -1,0 +1,606 @@
+## Discovery Workshop onboarder specification
+##
+## Consumed by jamf/modular_onboarder via the config's spec_url. Two sections:
+##
+##   credentials  values the wizard collects and writes into tfvars
+##   options      include_* flags that map to a module block in main.tf
+##
+## Only the `options` section drives provider gating: utils/provider_tracker.py reads
+## `required_provider` from it to decide which credential sections the wizard shows.
+## Provider codes are jpro (Jamf Pro via the jamfplatform provider) and jprt (Jamf
+## Protect credentials; there is no separate Jamf Protect Terraform provider, the
+## code only gates the form section).
+##
+## The jsc code is gone. At the Platform API GA, Jamf Security Cloud became the
+## jamfplatform_security_cloud_* family on the same gateway and the same integration,
+## so the separate Jamf-Concepts/jsctfprovider provider and its username/password
+## credential section were both removed. Anything the wizard still renders for jsc
+## has no Terraform variable behind it.
+
+credentials:
+  ## Jamf Platform API
+  ##
+  ## GA gateway host: {region}.api.jamfcloud.com. The public beta's
+  ## {region}.apigw.jamf.com was retired at GA and provider 0.29.0-rc.4 and later
+  ## cannot reach it, so a stale tfvars value fails root variable validation with a
+  ## message naming the beta host rather than presenting as a network error.
+  - key: jamfplatform_base_url
+    type: <string>
+    presence: required
+    module_name: providers.tf
+    required_provider: jpro
+    category: Platform
+    content: "Regional API gateway URL (https://us.api.jamfcloud.com | https://eu.api.jamfcloud.com | https://apac.api.jamfcloud.com)"
+    display_name: Jamf Platform Region
+    display_desc: "US: https://us.api.jamfcloud.com, EU: https://eu.api.jamfcloud.com, APAC: https://apac.api.jamfcloud.com. This is the API gateway, not the Jamf Pro console URL. Host only, with no path."
+
+  - key: jamfplatform_client_id
+    type: <string>
+    presence: required
+    module_name: providers.tf
+    required_provider: jpro
+    category: Platform
+    content: OAuth2 client ID from account.jamf.com Integration
+    display_name: Platform Client ID
+    display_desc: Client ID generated when you create an Integration in Jamf Account
+
+  - key: jamfplatform_client_secret
+    type: <string>
+    presence: required
+    module_name: providers.tf
+    required_provider: jpro
+    category: Platform
+    content: OAuth2 client secret from account.jamf.com Integration
+    display_name: Platform Client Secret
+    display_desc: Client Secret generated when you create an Integration in Jamf Account
+
+  ## Scope. Exactly one of the next two, enforced by root variable validation:
+  ## an API integration targets an environment or a tenant, never both, and the
+  ## provider rejects both together at configure time with Conflicting API
+  ## Integration Scope. Supplying the one that does not match how the integration
+  ## was registered is refused with 403 OWNERSHIP_FORBIDDEN even when both
+  ## identifiers belong to the same customer.
+  - key: jamfplatform_environment_id
+    type: <string>
+    presence: optional
+    module_name: providers.tf
+    required_provider: jpro
+    category: Platform
+    content: Platform environment ID from the Integration details panel in account.jamf.com
+    display_name: Platform Environment ID
+    display_desc: Preferred. One environment-scoped integration covers every tenant in the group. Leave the Tenant ID empty if you set this.
+
+  - key: jamfplatform_tenant_id
+    type: <string>
+    presence: optional
+    module_name: providers.tf
+    required_provider: jpro
+    category: Platform
+    content: Legacy tenant UUID from the Integration details panel in account.jamf.com
+    display_name: Tenant ID
+    display_desc: Legacy. UUID shown when you click the tenant pill in the Integration details panel. Only for an integration registered without a platform environment; prefer the Platform Environment ID. Leave empty if you set that.
+
+  - key: min_request_interval_ms
+    type: <string>
+    presence: optional
+    module_name: providers.tf
+    required_provider: jpro
+    category: Platform
+    content: Minimum interval between Jamf Platform API requests, in milliseconds
+    display_name: Minimum Request Interval
+    display_desc: Defaults to 100. Raise it if a shared demo tenant starts returning 429s. Pair with TF_CLI_ARGS_apply="-parallelism=1".
+
+  ## Jamf Protect
+  - key: jamfprotect_url
+    type: <string>
+    presence: optional
+    module_name: module.configuration-jamf-pro-jamf-protect
+    required_provider: jprt
+    category: Security
+    content: "Your Jamf Protect tenant URL (https://orgname.protect.jamfcloud.com)"
+    display_name: Jamf Protect Tenant URL
+    display_desc: This is the URL you navigate to for Jamf Protect
+
+  - key: jamfprotect_client_id
+    type: <string>
+    presence: optional
+    module_name: module.configuration-jamf-pro-jamf-protect
+    required_provider: jprt
+    category: Security
+    content: The Client ID created in the Jamf Protect console
+    display_name: Jamf Protect Client ID
+    display_desc: This value is generated when you create an API Client in Jamf Protect
+
+  - key: jamfprotect_client_password
+    type: <string>
+    presence: optional
+    module_name: module.configuration-jamf-pro-jamf-protect
+    required_provider: jprt
+    category: Security
+    content: The Client Password created in the Jamf Protect console
+    display_name: Jamf Protect Client Password
+    display_desc: This value is generated when you create an API Client in Jamf Protect
+
+  ## Jamf Security Cloud
+  ##
+  ## No credentials. jsc_username and jsc_password are gone: Jamf Security Cloud is
+  ## reached through the Platform API integration collected above, as the
+  ## jamfplatform_security_cloud_* family. A tenant that does not hold a Security
+  ## Cloud capability is refused with 403 NOT_ENTITLED, which is an entitlement gap
+  ## rather than anything a credential could fix.
+  ##
+  ## The two knobs below are the whole Security Cloud input surface. Both are
+  ## optional, both default to the workshop's intent, and the wizard need not show
+  ## either.
+  - key: jsc_sync_refresh_interval_minutes
+    type: <string>
+    presence: optional
+    module_name: module.configuration-jamf-security-cloud-jamf-pro
+    required_provider: jpro
+    category: Security
+    content: How often UEM Connect syncs device inventory and group membership from Jamf Pro, in minutes
+    display_name: UEM Connect Sync Interval
+    display_desc: Defaults to 720. Jamf Security Cloud accepts only 60, 120, 240, 480, 720 or 1440; anything else is rejected at plan time.
+
+  - key: jsc_device_risk_uem_signaling_enabled
+    type: <boolean>
+    presence: optional
+    module_name: module.configuration-jamf-security-cloud-jamf-pro
+    required_provider: jpro
+    category: Security
+    content: Send each device's risk level from Jamf Security Cloud back to Jamf Pro
+    display_name: Device Risk UEM Signalling
+    display_desc: Defaults to true. Lets Jamf Pro act on a risk level Jamf Security Cloud has assessed.
+
+  ## Apple service tokens
+  ##
+  ## No include_ flag: module.configuration-apple-service-tokens is always
+  ## instantiated and each resource inside is gated on its own token being present,
+  ## so the Automated Device Enrollment public key is readable on the run that has
+  ## no token yet.
+  - key: device_enrollment_token_content
+    type: <string>
+    presence: optional
+    module_name: module.configuration-apple-service-tokens
+    required_provider: jpro
+    category: Apple Services
+    content: Base64 of the Device Management Service token (.p7m) from Apple Business Manager or Apple School Manager
+    display_name: Device Management Service Token
+    display_desc: Required for Automated Device Enrollment. Obtain it from Apple under Device Management Services using the Automated Device Enrollment public key from the previous run.
+
+  - key: volume_purchasing_service_token_content
+    type: <string>
+    presence: optional
+    module_name: module.configuration-apple-service-tokens
+    required_provider: jpro
+    category: Apple Services
+    content: Base64 of the Volume Purchasing content token (.vpptoken) from Apple Business Manager or Apple School Manager
+    display_name: Content Token (VPP)
+    display_desc: Required for volume app purchasing and VPP app distribution. Download it from Payments and Billing for the location that matches your Jamf Pro instance.
+
+  - key: device_enrollment_token_wo_version
+    type: <string>
+    presence: optional
+    module_name: module.configuration-apple-service-tokens
+    required_provider: jpro
+    category: Apple Services
+    content: Rotation counter for the Automated Device Enrollment token
+    display_name: Device Enrollment Token Version
+    display_desc: Jamf Pro never returns the stored token, so Terraform cannot see that its content changed. Bump this to force a re-upload.
+
+  - key: volume_purchasing_service_token_wo_version
+    type: <string>
+    presence: optional
+    module_name: module.configuration-apple-service-tokens
+    required_provider: jpro
+    category: Apple Services
+    content: Rotation counter for the Volume Purchasing service token
+    display_name: Volume Purchasing Token Version
+    display_desc: Bump this to force a re-upload of the content token.
+
+  ## Identity provider selection
+  - key: idp_choice
+    type: <string>
+    presence: required
+    module_name: main.tf
+    required_provider: jpro
+    category: Identity
+    content: "One of okta, microsoft, google or none"
+    display_name: Identity Provider
+    display_desc: Selects which identity module writes the Jamf Pro SSO settings singleton. 'none' still enables Jamf Account admin SSO. 'google' is not implemented yet.
+
+  - key: idp_shortname
+    type: <string>
+    presence: optional
+    module_name: main.tf
+    required_provider: jpro
+    category: Identity
+    content: "Short-name claim to match users on instead of NameID or email"
+    display_name: Short Name Attribute
+    display_desc: Okta accepts mailNickName. Entra also accepts onPremisesSamAccountName. Leave empty to match users on email.
+
+  ## Okta
+  - key: okta_sso_metadata_url
+    type: <string>
+    presence: optional
+    module_name: module.identity-jamf-pro-okta
+    required_provider: jpro
+    category: Identity
+    content: Okta SAML app metadata URL
+    display_name: Okta Metadata URL
+    display_desc: The Okta tenant host, LDAP hostname and directory base DN are all derived from this, so it must be a real Okta URL.
+
+  - key: okta_service_account_username
+    type: <string>
+    presence: optional
+    module_name: module.identity-jamf-pro-okta
+    required_provider: jpro
+    category: Identity
+    content: Okta read-only administrator username for the LDAP bind
+    display_name: Okta Service Account Username
+    display_desc: Becomes the uid= component of the Jamf Pro LDAP bind DN.
+
+  - key: okta_ldap_password
+    type: <string>
+    presence: optional
+    module_name: module.identity-jamf-pro-okta
+    required_provider: jpro
+    category: Identity
+    content: Password for the Okta LDAP service account
+    display_name: Okta Service Account Password
+    display_desc: Used by Jamf Pro to bind to the Okta LDAP interface.
+
+  - key: okta_ios_secret_key
+    type: <string>
+    presence: optional
+    module_name: ""
+    required_provider: jpro
+    category: Identity
+    content: Okta iOS Verify secret key
+    display_name: Okta iOS Secret Key
+    display_desc: Collected but not yet consumed by any module in this repo. See README.md, Open items.
+
+  - key: okta_oidcclientid
+    type: <string>
+    presence: optional
+    module_name: ""
+    required_provider: jpro
+    category: Identity
+    content: Okta OIDC client ID for Jamf Connect
+    display_name: Okta OIDC Client ID
+    display_desc: Collected but not yet consumed. Distinct from okta_client_id, which is a Jamf Trust setting.
+
+  ## Okta device-side payloads, consumed only when include_okta_psso is true
+  - key: okta_short_url
+    type: <string>
+    presence: optional
+    module_name: module.management-okta-psso
+    required_provider: jpro
+    category: Identity
+    content: Okta short URL, for example acme.okta.com
+    display_name: Okta Short URL
+    display_desc: Templated into the Okta Verify configuration profiles.
+
+  - key: okta_org_name
+    type: <string>
+    presence: optional
+    module_name: module.management-okta-psso
+    required_provider: jpro
+    category: Identity
+    content: Okta org name
+    display_name: Okta Org Name
+    display_desc: Templated into the Okta Verify configuration profiles.
+
+  - key: okta_scep_url
+    type: <string>
+    presence: optional
+    module_name: module.management-okta-psso
+    required_provider: jpro
+    category: Identity
+    content: Okta Device Access SCEP URL
+    display_name: Okta SCEP URL
+    display_desc: 'Example: https://acme.okta.com/pki/alphanumericidentifier'
+
+  - key: okta_psso_client
+    type: <string>
+    presence: optional
+    module_name: module.management-okta-psso
+    required_provider: jpro
+    category: Identity
+    content: Okta Platform SSO client ID
+    display_name: Okta PSSO Client ID
+    display_desc: Client ID of the Okta Platform SSO application.
+
+  - key: okta_scep_username
+    type: <string>
+    presence: optional
+    module_name: module.management-okta-psso
+    required_provider: jpro
+    category: Identity
+    content: Okta SCEP username
+    display_name: Okta SCEP Username
+    display_desc: SCEP account name from the Okta Device Access configuration.
+
+  - key: okta_scep_password
+    type: <string>
+    presence: optional
+    module_name: module.management-okta-psso
+    required_provider: jpro
+    category: Identity
+    content: Okta SCEP challenge password
+    display_name: Okta SCEP Password
+    display_desc: SCEP challenge from the Okta Device Access configuration.
+
+  ## Microsoft Entra ID
+  - key: entra_sso_metadata_url
+    type: <string>
+    presence: optional
+    module_name: module.identity-jamf-pro-microsoft-entra
+    required_provider: jpro
+    category: Identity
+    content: Entra ID federation metadata URL for the Jamf Pro enterprise application
+    display_name: Entra Metadata URL
+    display_desc: The Entra tenant ID is derived from the fourth path segment, so it must be a full login.microsoftonline.com metadata URL.
+
+  - key: entra_configure_cloud_identity_provider
+    type: <boolean>
+    presence: optional
+    module_name: module.identity-jamf-pro-microsoft-entra
+    required_provider: jpro
+    category: Identity
+    content: Register the Entra ID Cloud Identity Provider connection in Jamf Pro
+    display_name: Configure Entra Directory Connection
+    display_desc: Defaults to true. A global administrator must still grant consent in the Jamf Pro console after the first apply.
+
+  - key: entra_enable_advanced_settings
+    type: <boolean>
+    presence: optional
+    module_name: ""
+    required_provider: jpro
+    category: Identity
+    content: Wizard-only flag controlling visibility of the advanced Entra fields
+    display_name: Enable Advanced Entra Settings
+    display_desc: No Terraform resource consumes this. It exists so the form can reveal the OIDC fields.
+
+  - key: entra_oidcclientid
+    type: <string>
+    presence: optional
+    module_name: ""
+    required_provider: jpro
+    category: Identity
+    content: Entra OIDC client ID for Jamf Connect
+    display_name: Entra OIDC Client ID
+    display_desc: Collected but not yet consumed. See README.md, Open items.
+
+  - key: entra_oidcscopes
+    type: <string>
+    presence: optional
+    module_name: ""
+    required_provider: jpro
+    category: Identity
+    content: Entra OIDC scope application ID URI for Jamf Connect
+    display_name: Entra OIDC Scopes
+    display_desc: Collected but not yet consumed.
+
+  - key: entra_oidcropgid
+    type: <string>
+    presence: optional
+    module_name: ""
+    required_provider: jpro
+    category: Identity
+    content: Entra OIDC ROPG client ID for Jamf Connect network authentication
+    display_name: Entra ROPG Client ID
+    display_desc: Collected but not yet consumed.
+
+  - key: entra_ropgtenant
+    type: <string>
+    presence: optional
+    module_name: ""
+    required_provider: jpro
+    category: Identity
+    content: Entra tenant used for the Jamf Connect ROPG flow
+    display_name: Entra ROPG Tenant
+    display_desc: Collected but not yet consumed.
+
+  ## Google Workspace
+  ##
+  ## Declared so every key in the config resolves to a real root variable.
+  ## modules/identity-jamf-pro-google does not exist yet; idp_choice rejects "google".
+  - key: google_domain
+    type: <string>
+    presence: optional
+    module_name: module.identity-jamf-pro-google
+    required_provider: jpro
+    category: Identity
+    content: Google Workspace primary domain
+    display_name: Google Domain
+    display_desc: Not yet implemented. See README.md, Open items.
+
+  - key: google_sso_metadata_file_content
+    type: <string>
+    presence: optional
+    module_name: module.identity-jamf-pro-google
+    required_provider: jpro
+    category: Identity
+    content: Base64 of the Google SAML metadata XML
+    display_name: Google SAML Metadata File
+    display_desc: Not yet implemented. The provider does accept base64 metadata directly, so the SAML half needs no conversion.
+
+  - key: google_ldap_keystore_file_content
+    type: <string>
+    presence: optional
+    module_name: module.identity-jamf-pro-google
+    required_provider: jpro
+    category: Identity
+    content: Base64 of the Google Secure LDAP client certificate archive (.zip)
+    display_name: Google LDAP Certificate
+    display_desc: Not yet implemented. The provider needs a base64 PKCS#12 plus a password; Google issues a zip of .crt and .key. See README.md, Open items.
+
+  - key: google_oidcclientid
+    type: <string>
+    presence: optional
+    module_name: ""
+    required_provider: jpro
+    category: Identity
+    content: Google OIDC client ID for Jamf Connect
+    display_name: Google OIDC Client ID
+    display_desc: Collected but not yet consumed.
+
+  - key: google_oidcclientsecret
+    type: <string>
+    presence: optional
+    module_name: ""
+    required_provider: jpro
+    category: Identity
+    content: Google OIDC client secret for Jamf Connect
+    display_name: Google OIDC Client Secret
+    display_desc: Collected but not yet consumed.
+
+  ## Jamf Connect
+  - key: include_jamf_connect
+    type: <boolean>
+    presence: optional
+    module_name: ""
+    required_provider: jpro
+    category: Identity
+    content: Deploy Jamf Connect
+    display_name: Deploy Jamf Connect
+    display_desc: No module in this repo deploys Jamf Connect yet, so setting this has no effect. Deliberately kept out of the options section so it cannot appear as a deployable module.
+
+  - key: jamf_connect_license_content
+    type: <string>
+    presence: optional
+    module_name: ""
+    required_provider: jpro
+    category: Identity
+    content: Base64 of the Jamf Connect license file
+    display_name: Jamf Connect License
+    display_desc: Collected but not yet consumed.
+
+  ## Jamf Pro console URL
+  - key: jamfpro_instance_url
+    type: <string>
+    presence: optional
+    module_name: main.tf
+    required_provider: jpro
+    category: Platform
+    content: "Full URL of the Jamf Pro console, for example https://acme.jamfcloud.com"
+    display_name: Jamf Pro URL
+    display_desc: Leave empty. The root reads it from the tenant via data.jamfplatform_pro_jamf_pro_server_url. Kept as an override for upstream compatibility.
+
+options:
+  ## Management foundation
+  - key: include_onboarder_management_macOS
+    type: <boolean>
+    presence: optional
+    module_name: module.onboarder-management-macOS
+    required_provider: jpro
+    category: Management
+    content: Categories, computer management settings, Smart Computer groups and Rosetta
+    display_name: Jamf for Mac
+    display_desc: Configure all available management settings in Onboarder for macOS. Includes common configurations, settings, Smart Computer groups, and quality of life settings for macOS management.
+
+  - key: include_onboarder_management_mobile
+    type: <boolean>
+    presence: optional
+    module_name: module.onboarder-management-mobile
+    required_provider: jpro
+    category: Management
+    content: iOS and iPadOS configuration profiles
+    display_name: Jamf for Mobile
+    display_desc: Configure all available management settings in Onboarder for iOS and iPadOS. Includes common configurations, settings, Smart Device groups, and quality of life settings for iOS and iPadOS management.
+
+  ## Security
+  - key: include_filevault
+    type: <boolean>
+    presence: optional
+    module_name: module.endpoint-security-macOS-filevault
+    required_provider: jpro
+    category: Security
+    content: FileVault 2 enforcement and recovery key escrow
+    display_name: Enforce & Escrow FileVault 2
+    display_desc: For managed computers, configure the Configuration Profile, Script and Policy needed to enable and enforce FileVault 2 and make certain that the recovery key is escrowed by Jamf.
+
+  ## Both were required_provider "jpro, jsc" before the Platform API GA. Jamf
+  ## Security Cloud is now reached through the jpro integration, so neither needs a
+  ## second credential set.
+  ##
+  ## include_jsc_all_services depends on include_jsc_uemc: pushing the activation
+  ## profile's configuration profiles into Jamf Pro requires a UEM Connect connector.
+  ## Without one the activation profile is still created and its code published as a
+  ## credential artifact for distribution as an enrollment link, so enabling it alone
+  ## is degraded rather than broken.
+  - key: include_jsc_uemc
+    type: <boolean>
+    presence: optional
+    module_name: module.configuration-jamf-security-cloud-jamf-pro
+    required_provider: jpro
+    content: Registers Jamf Pro as the Jamf Security Cloud UEM connector for group synchronisation, automated risk signalling and activation profile deployment
+    category: Security
+    display_name: Integrate Jamf Pro and Jamf Security Cloud Consoles
+    display_desc: Registers Jamf Pro as the UEM connector. Jamf Security Cloud provisions and manages its own credentials on the tenant, so no API role or client is created — those resources were removed from the provider at the Platform API GA.
+
+  - key: include_jsc_all_services
+    type: <boolean>
+    presence: optional
+    module_name: module.configuration-jamf-security-cloud-all-services
+    required_provider: jpro
+    content: Creates an Activation Profile for Network Security and Content Controls and deploys its configuration profiles to Jamf Pro
+    category: Security
+    display_name: Configure Web and Network Security Capabilities
+    display_desc: Creates the Jamf Security Cloud activation profile covering Network Security and Content Controls, and the two smart groups it is scoped to. Enable "Integrate Jamf Pro and Jamf Security Cloud Consoles" as well to have the configuration profiles pushed into Jamf Pro.
+
+  - key: include_jamf_protect_trial_kickstart
+    type: <boolean>
+    presence: optional
+    module_name: module.configuration-jamf-pro-jamf-protect
+    required_provider: jpro, jprt
+    category: Security
+    display_name: Integrate Jamf Pro and Jamf Protect for macOS Consoles
+    display_desc: Configures the API connection and integration between macOS management and security capabilities and their consoles. Streamlines deployment and enables advanced remediation workflows.
+
+  ## Identity
+  ##
+  ## The three identity modules that write the jamfplatform_pro_sso_settings
+  ## singleton are NOT listed here: they are selected by idp_choice, not by an
+  ## include_ flag, because the singleton allows exactly one writer per apply.
+  ## include_jamf_pro_admin_sso is listed because it is a manual override.
+  - key: include_jamf_pro_admin_sso
+    type: <boolean>
+    presence: optional
+    module_name: module.configuration-jamf-pro-admin-sso
+    required_provider: jpro
+    category: Identity
+    content: Jamf Account admin SSO only, without SAML
+    display_name: Enable Jamf Account Admin SSO Only
+    display_desc: Normally left off. The root enables it automatically when idp_choice is 'none'. Forcing it on takes precedence over the Okta and Entra modules, because all three write the same SSO settings singleton.
+
+  - key: include_okta_psso
+    type: <boolean>
+    presence: optional
+    module_name: module.management-okta-psso
+    required_provider: jpro
+    category: Identity
+    content: Okta Platform SSO SCEP profile, Okta Verify package and policy, and two PSSO profiles
+    display_name: Deploy Okta Platform SSO
+    display_desc: Requires okta_short_url, okta_org_name, okta_scep_url, okta_psso_client, okta_scep_username and okta_scep_password. The Discovery Workshop config does not collect them, so this stays off.
+
+  - key: include_microsoft_psso
+    type: <boolean>
+    presence: optional
+    module_name: module.management-microsoft-psso
+    required_provider: jpro
+    category: Identity
+    content: Microsoft Company Portal package and policy, and the Entra Platform SSO profile
+    display_name: Deploy Microsoft Platform SSO
+    display_desc: Needs no additional inputs; the bundled profile is tenant-agnostic. Off by default because the Discovery Workshop config does not request it.
+
+  - key: include_ssoe_okta
+    type: <boolean>
+    presence: optional
+    module_name: module.management-macOS-SSOe-Okta
+    required_provider: jpro
+    category: Identity
+    content: macOS Okta SSO extension profile, script and policy
+    display_name: Enable SSOe (Okta Template)
+    display_desc: TEMPLATE ONLY. The bundled .mobileconfig has a Jamf demo Okta tenant and SCEP URL hardcoded in it and the module takes no Okta inputs, so enabling it against a customer tenant deploys a profile pointing at the wrong Okta org. Modify the payloads before use.

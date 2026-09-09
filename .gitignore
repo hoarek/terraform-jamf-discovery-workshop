@@ -1,0 +1,19 @@
+# Terraform working directory and plugin cache
+.terraform/
+.terraform.tfstate.lock.info
+
+# State. Workshop runs keep state in the workflow's terraform-state artifact, not
+# in the repo. .terraform.lock.hcl IS committed.
+*.tfstate
+*.tfstate.*
+
+# tfvars. The onboarder generates these and they carry live credentials.
+*.tfvars
+*.tfvars.json
+!example.tfvars.json
+
+# Crash logs
+crash.log
+crash.*.log
+
+.DS_Store

@@ -1,0 +1,298 @@
+name: "Terraform Platform Workflow"
+
+# Dispatched by jamf/modular_onboarder. The contract, from
+# utils/github_workflow_operations.py in that repo:
+#
+#   * Only `unique_id` and `environment` are sent. GitHub rejects a dispatch
+#     carrying inputs the workflow does not declare, and this workflow is not
+#     listed in WORKFLOW_INPUT_COMPATIBILITY, so no other input ever arrives.
+#   * `environment` names a GitHub Environment the onboarder creates, holding
+#     every secret. Each secret value is base64-encoded, including `tf_vars`,
+#     which is base64 of the tfvars JSON.
+#   * find_run_by_unique_id() locates this run by grepping the logs for the
+#     unique_id, so the first job must echo it.
+#   * Any artifact whose name contains "credential" is treated as a credential
+#     bundle, and every file inside it is base64-decoded. Files in credential
+#     artifacts must therefore be base64. Other artifacts are read as-is.
+#
+# Unlike msp-services-onboarding-tf's terraform.yml, there is no Jamf Pro
+# username/password or OAuth bootstrap here and no API role and client cleanup:
+# the jamfplatform provider authenticates through the Platform API gateway using
+# values that arrive in tf_vars. The onboarder already special-cases this
+# workflow by name and skips its Jamf Pro credential verification.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub Environment to use"
+        required: true
+      unique_id:
+        description: "Unique identifier for this workflow run (auto-generated)"
+        required: true
+
+jobs:
+  log-unique-id:
+    name: Log Unique ID
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Log Unique ID
+        run: |
+          echo "Workflow Unique ID: ${{ github.event.inputs.unique_id }}"
+          echo "Started at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+  terraform:
+    name: "Terraform Operations"
+    needs: log-unique-id
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    env:
+      # A workshop run targets a shared demo tenant. Serialising apply is the
+      # difference between a clean run and a wall of 429s; pair it with
+      # min_request_interval_ms in tfvars. See README.md.
+      TF_CLI_ARGS_apply: "-parallelism=1 -no-color"
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+
+    steps:
+      - name: Decode checkout_repo secrets
+        run: |
+          REPO=$(echo "${{ secrets.checkout_repo }}" | base64 --decode)
+          REF=$(echo "${{ secrets.checkout_repo_ref }}" | base64 --decode)
+          TOKEN=$(echo "${{ secrets.checkout_repo_token }}" | base64 --decode)
+          APP_ID=$(echo "${{ secrets.checkout_repo_app_id }}" | base64 --decode)
+          APP_PRIVATE_KEY=$(echo "${{ secrets.checkout_repo_app_private_key }}" | base64 --decode)
+
+          [[ -n "$REPO" ]] && echo "::add-mask::$REPO"
+          [[ -n "$REF" ]] && echo "::add-mask::$REF"
+          [[ -n "$TOKEN" ]] && echo "::add-mask::$TOKEN"
+          [[ -n "$APP_ID" ]] && echo "::add-mask::$APP_ID"
+          [[ -n "$APP_PRIVATE_KEY" ]] && echo "::add-mask::$APP_PRIVATE_KEY"
+
+          echo "CHECKOUT_REPO=$REPO" >> $GITHUB_ENV
+          echo "CHECKOUT_REPO_REF=$REF" >> $GITHUB_ENV
+          echo "CHECKOUT_REPO_TOKEN=$TOKEN" >> $GITHUB_ENV
+          echo "CHECKOUT_REPO_APP_ID=$APP_ID" >> $GITHUB_ENV
+
+          # Multiline private key needs an EOF delimiter
+          {
+            echo "CHECKOUT_REPO_APP_PRIVATE_KEY<<EOF"
+            echo "$APP_PRIVATE_KEY"
+            echo "EOF"
+          } >> $GITHUB_ENV
+
+      - name: Parse Repository Info
+        env:
+          CHECKOUT_REPO: ${{ env.CHECKOUT_REPO }}
+        if: ${{ env.CHECKOUT_REPO != '' && env.CHECKOUT_REPO_APP_ID != '' && env.CHECKOUT_REPO_APP_PRIVATE_KEY != '' }}
+        run: |
+          if [[ "${CHECKOUT_REPO}" == */* ]]; then
+            CHECKOUT_REPO_OWNER=$(echo "${CHECKOUT_REPO}" | cut -d'/' -f1)
+            CHECKOUT_REPO_NAME=$(echo "${CHECKOUT_REPO}" | cut -d'/' -f2)
+          else
+            echo "Error: CHECKOUT_REPO is not in 'owner/repo' format"
+            exit 1
+          fi
+
+          echo "CHECKOUT_REPO_OWNER=${CHECKOUT_REPO_OWNER}" >> $GITHUB_ENV
+          echo "CHECKOUT_REPO_NAME=${CHECKOUT_REPO_NAME}" >> $GITHUB_ENV
+
+      - name: Create GitHub App Token
+        uses: actions/create-github-app-token@v3
+        if: ${{ env.CHECKOUT_REPO_APP_ID != '' && env.CHECKOUT_REPO_APP_PRIVATE_KEY != '' }}
+        id: app-token
+        with:
+          app-id: ${{ env.CHECKOUT_REPO_APP_ID }}
+          private-key: ${{ env.CHECKOUT_REPO_APP_PRIVATE_KEY }}
+          owner: ${{ env.CHECKOUT_REPO_OWNER }}
+          repositories: ${{ env.CHECKOUT_REPO_NAME }}
+
+      - name: Set GitHub App Token
+        if: ${{ steps.app-token.outputs.token != '' }}
+        run: |
+          echo "CHECKOUT_REPO_TOKEN=${{ steps.app-token.outputs.token }}" >> $GITHUB_ENV
+          echo "::add-mask::${{ steps.app-token.outputs.token }}"
+
+      - name: Checkout Repository
+        if: ${{ env.CHECKOUT_REPO == '' }}
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Checkout Alternate Repository
+        if: ${{ env.CHECKOUT_REPO != '' && env.CHECKOUT_REPO_TOKEN != '' }}
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.CHECKOUT_REPO }}
+          ref: ${{ env.CHECKOUT_REPO_REF }}
+          token: ${{ env.CHECKOUT_REPO_TOKEN }}
+          fetch-depth: 1
+
+      - name: Checkout Alternate Repository (public, no token)
+        if: ${{ env.CHECKOUT_REPO != '' && env.CHECKOUT_REPO_TOKEN == '' }}
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.CHECKOUT_REPO }}
+          ref: ${{ env.CHECKOUT_REPO_REF }}
+          fetch-depth: 1
+
+      - name: Write tf_vars secret to file
+        run: |
+          if [[ -z "${{ secrets.tf_vars }}" ]]; then
+            echo "ERROR: tf_vars secret is empty or undefined"
+            echo "{}" > ./tfvars.auto.tfvars.json
+            echo "Created empty JSON object as fallback"
+          else
+            echo "Decoding tf_vars secret..."
+            echo "${{ secrets.tf_vars }}" | base64 --decode > ./tfvars.auto.tfvars.json
+            echo "tf_vars decoded successfully"
+          fi
+
+      - name: Verify every tfvars key resolves to a root variable
+        run: python3 ./utils/check_config_variables.py --tfvars ./tfvars.auto.tfvars.json
+
+      # 1.16.1 rather than 1.12.2. The floor is 1.14: modules/configuration-jamf-
+      # security-cloud-all-services drives the activation profile deployment from a
+      # lifecycle { action_trigger }, and action blocks do not exist before 1.14.
+      # required_version in providers.tf states the same floor, so an older runner
+      # fails at init with a version error rather than a confusing parse error.
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.1"
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+        continue-on-error: true
+
+      - name: Check Init Status
+        if: steps.init.outcome == 'failure'
+        run: |
+          echo "Terraform init failed!"
+          exit 1
+
+      - name: Terraform Apply
+        id: apply
+        run: |
+          terraform apply \
+            -auto-approve \
+            -var-file="./tfvars.auto.tfvars.json"
+        continue-on-error: true
+
+      # The state artifact is uploaded whether or not apply succeeded. A partial
+      # apply still created objects, and losing the state would orphan them.
+      - name: Upload Terraform State
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: terraform-state
+          path: |
+            ./terraform.tfstate*
+          retention-days: 1
+
+      - name: Check Apply Status
+        if: steps.apply.outcome == 'failure'
+        run: |
+          echo "Terraform apply failed!"
+          exit 1
+
+      # Plain artifact, read as-is by the onboarder. The PEM is not a secret; the
+      # operator uploads it to Apple Business Manager or Apple School Manager to
+      # obtain the .p7m server token.
+      - name: Export Automated Device Enrollment public key
+        run: |
+          mkdir -p ./artifacts/apple
+          if terraform output -raw automated_device_enrollment_public_key > ./artifacts/apple/DeviceEnrollmentPublicKey.pem 2>/dev/null; then
+            echo "Exported Automated Device Enrollment public key"
+          else
+            echo "No Automated Device Enrollment public key available"
+            rm -f ./artifacts/apple/DeviceEnrollmentPublicKey.pem
+          fi
+
+      - name: Upload Automated Device Enrollment public key
+        if: hashFiles('./artifacts/apple/DeviceEnrollmentPublicKey.pem') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: apple-device-enrollment-public-key
+          path: ./artifacts/apple/DeviceEnrollmentPublicKey.pem
+          retention-days: 1
+
+      # Artifact name contains "credential", so the onboarder base64-decodes every
+      # file inside it. The contents must therefore be base64-encoded here.
+      - name: Export onboarder credentials
+        run: |
+          mkdir -p ./artifacts/credentials
+          FAILOVER=$(terraform output -raw sso_failover_url_credential 2>/dev/null || true)
+          if [[ -n "$FAILOVER" && "$FAILOVER" != "null" ]]; then
+            echo "::add-mask::$FAILOVER"
+            printf '%s' "$FAILOVER" | base64 -w0 > ./artifacts/credentials/sso_failover_url.txt
+            echo "Exported SSO failover URL"
+          else
+            echo "No SSO failover URL to export (idp_choice is 'none')"
+          fi
+
+          # The Jamf Security Cloud activation code is a credential in its own
+          # right: holding it is enough to enrol a device. It is also the only way
+          # to enrol when include_jsc_uemc is false, because Jamf Security Cloud
+          # then pushed no configuration profile into Jamf Pro and the code has to
+          # go out as an enrollment link instead.
+          ACTIVATION=$(terraform output -raw jsc_activation_code_credential 2>/dev/null || true)
+          if [[ -n "$ACTIVATION" && "$ACTIVATION" != "null" ]]; then
+            echo "::add-mask::$ACTIVATION"
+            printf '%s' "$ACTIVATION" | base64 -w0 > ./artifacts/credentials/jsc_activation_code.txt
+            echo "Exported Jamf Security Cloud activation code"
+          else
+            echo "No Jamf Security Cloud activation code to export (include_jsc_all_services is false)"
+          fi
+
+      - name: Upload onboarder credentials
+        if: hashFiles('./artifacts/credentials/*') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: onboarder-credentials
+          path: ./artifacts/credentials/
+          retention-days: 1
+
+      # Non-sensitive values the completion page shows: the SAML EntityID to paste
+      # into the IdP application, the Entra tenant ID for the consent step, and the
+      # token expiry dates.
+      #
+      # Built by naming each output explicitly. `terraform output -json` would be
+      # shorter but it emits sensitive values in cleartext, which would put the SSO
+      # failover URL into a plain, non-credential artifact.
+      - name: Export deployment summary
+        run: |
+          mkdir -p ./artifacts/summary
+          out() { terraform output -raw "$1" 2>/dev/null || true; }
+          # jsc_scope_groups_pending_criteria_removal is an object, not a string, so
+          # it needs -json and --argjson. It carries no sensitive value. Its point is
+          # the follow-up step: both smart groups ship with a dummy serial-number
+          # criterion so the apply reaches no real devices, and removing that
+          # criterion in Jamf Pro is what turns the deployment on. Jamf Security
+          # Cloud writes the configuration profiles' descriptions now, so this
+          # artifact is where the instruction reaches the operator.
+          jsonout() { terraform output -json "$1" 2>/dev/null || echo 'null'; }
+          jq -n \
+            --arg jamfpro_instance_url "$(out jamfpro_instance_url)" \
+            --arg saml_entity_id "$(out saml_entity_id)" \
+            --arg okta_tenant "$(out okta_tenant)" \
+            --arg okta_ldap_server_id "$(out okta_ldap_server_id)" \
+            --arg entra_tenant_id "$(out entra_tenant_id)" \
+            --arg entra_cloud_identity_provider_id "$(out entra_cloud_identity_provider_id)" \
+            --arg ade_token_expiration "$(out automated_device_enrollment_token_expiration_date)" \
+            --arg vpp_token_expiration "$(out volume_purchasing_token_expiration)" \
+            --arg jsc_uem_connect_id "$(out jsc_uem_connect_id)" \
+            --argjson jsc_scope_groups_pending_criteria_removal "$(jsonout jsc_scope_groups_pending_criteria_removal)" \
+            '$ARGS.named' > ./artifacts/summary/outputs.json
+          echo "Wrote deployment summary"
+
+      - name: Upload deployment summary
+        uses: actions/upload-artifact@v7
+        with:
+          name: deployment-summary
+          path: ./artifacts/summary/outputs.json
+          retention-days: 1

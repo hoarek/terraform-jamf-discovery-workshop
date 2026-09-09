@@ -1,0 +1,445 @@
+{
+  "_comment": "Discovery Workshop Onboarder v2 — Deploys the Jamf Platform API foundation (Mac + Mobile management, FileVault, Jamf Security Cloud, Jamf Protect) against a pre-provisioned demo tenant. Multi-page flow with conditional Entra IdP branch. All module toggles are forced; the wizard collects credentials and IdP selection only.",
+  "terraform_repo": "https://github.com/Jamf-Concepts/terraform-jamf-discovery-workshop",
+  "terraform_repo_branch": "main",
+  "workflow_file": "terraform-platform.yml",
+  "spec_url": "https://raw.githubusercontent.com/Jamf-Concepts/terraform-jamf-discovery-workshop/main/spec.yml",
+  "page_template": "page_foundations.html",
+  "conditional_sidebar": false,
+  "forced_modules": [
+    "include_onboarder_management_macOS",
+    "include_onboarder_management_mobile",
+    "include_filevault",
+    "include_jsc_uemc",
+    "include_jsc_all_services",
+    "include_jamf_protect_trial_kickstart"
+  ],
+
+  "1": {
+    "page_id": "welcome",
+    "title": "Discovery Workshop",
+    "description": "Deploy a complete Jamf management and security baseline — Mac, Mobile, JSC and Protect — in one run.",
+    "page_type": "form_input",
+    "background_image": "welcome.jpeg",
+    "instructions": {
+      "instruction-1": "**Before you begin, have the following ready:**",
+      "instruction-2": "⠀",
+      "instruction-3": "1. **Jamf Platform API credentials** — create an API integration in [Jamf Account](https://account.jamf.com){target=\"_blank\"} with Platform environment scope (<a href=\"#\" data-bs-toggle=\"modal\" data-bs-target=\"#platformApiHelpModal\">help</a>)",
+      "instruction-4": "2. **Jamf Protect API client** — create an API client in your Jamf Protect tenant (Settings → API Clients). Grant it the **Admin** role.",
+      "instruction-5": "3. **Apple service tokens** _(optional)_ — ADE server token (.p7m) and Content Token (.vpptoken) from Apple Business or School Manager",
+      "instruction-6": "4. **Microsoft Entra ID** _(optional)_ — App Federation Metadata URL from an Entra enterprise application configured for Jamf Pro SAML SSO",
+      "instruction-7": "⠀",
+      "instruction-8": "This wizard takes approximately 5 minutes to complete. Deployment runs automatically after the final step."
+    },
+    "sections": [
+      {
+        "section_id": "terms_agreement",
+        "form_elements": {
+          "form_type": "terms_agreement",
+          "checkbox_id": "terms_accepted",
+          "checkbox_name": "terms_accepted",
+          "text": "You are invited to access and use a pre-release and in-progress beta version of Jamf's Onboarder tool. Onboarder is a utility designed to streamline setting up Jamf environments.\n\nYou will only use Onboarder in accordance with the Onboarder Guide training, which you must complete before using Onboarder, and any other guidelines that we may provide to you. Onboarder must be used with you and your customer present.\n\nBy using Onboarder, you agree to provide Jamf suggestions, recommendations, or feedback about Onboarder (\"Feedback\"). We may use the Feedback without restriction.\n\nJamf provides Onboarder on an \"as-is\" and \"as available\" basis without any warranties of any kind. Onboarder may be incomplete or inoperable. We have no obligation to provide technical support for Onboarder and make no uptime commitments. We will have no indemnity or defense obligations to you for any claims arising from your use of Onboarder. To the maximum extent permitted by law, in no event will our aggregate liability related to your use of Onboarder exceed US $100.",
+          "confirmation_text": "I agree to the Jamf Onboarder <a href=\"#\" class=\"js-toggle-terms\">Terms and Conditions</a>"
+        }
+      }
+    ],
+    "buttons": {
+      "continue_button": {
+        "text": "Get Started",
+        "type": "submit",
+        "enabled": true,
+        "css_class": "btn-primary"
+      }
+    },
+    "next_page": "2"
+  },
+
+  "2": {
+    "page_id": "what_youre_getting",
+    "title": "What You're Deploying",
+    "description": "Everything this wizard configures automatically — no choices required.",
+    "page_type": "form_input",
+    "background_image": "welcome.jpeg",
+    "instructions": {
+      "instruction-1": "**Device Management & Deployment**",
+      "instruction-2": "Mac and Mobile management foundation — smart groups, inventory settings, computer management settings, User Self Service. FileVault 2 encryption with recovery key escrow. User-Initiated Enrollment and Automated Device Enrollment readiness.",
+      "instruction-3": "⠀",
+      "instruction-4": "**Identity & Access**",
+      "instruction-5": "macOS Local Administrator Password Solution (LAPS) — auto-rotated, viewable only by Jamf admins. Optional: Microsoft Entra SAML SSO, directory integration, and Platform SSO — configured on the next page.",
+      "instruction-6": "⠀",
+      "instruction-7": "**Security & Compliance**",
+      "instruction-8": "Jamf Protect — Next-Gen AV, behavioral threat detection, EDR telemetry, trial kickstart, and three inventory extension attributes (plan hash, plan ID, smart group membership). Jamf Security Cloud — Web Protection, Removable Storage Controls, Application Controls, Compromised Device Lockdown, Advanced Threat Controls, Continuous Conditional Access.",
+      "instruction-9": "⠀",
+      "instruction-10": "**Network Access**",
+      "instruction-11": "Jamf Security Cloud ZTNA — network relay, conditional access, and UEM Connect for Jamf Pro integration. All mobile devices scoped to iOS Supervised and JSC managed-device signals.",
+      "instruction-12": "⠀",
+      "instruction-13": "**General Settings**",
+      "instruction-14": "User-Initiated Enrollment, re-enrollment policy, Self Service+, macOS Self Service notifications, Jamf Cloud Distribution Point, LAPS settings, App Installer, and Managed Software Update — all configured to workshop defaults.",
+      "instruction-15": "⠀",
+      "instruction-16": "_Apple Push Notification certificate and ADE enrollment profile configuration require a manual step after deployment — instructions will appear on the completion page._"
+    },
+    "buttons": {
+      "continue_button": {
+        "text": "Continue",
+        "type": "submit",
+        "enabled": true,
+        "css_class": "btn-primary"
+      }
+    },
+    "next_page": "3"
+  },
+
+  "3": {
+    "page_id": "credentials",
+    "title": "Credentials",
+    "description": "Enter your Jamf Platform API and Jamf Protect credentials.",
+    "page_type": "form_input_with_sections",
+    "background_image": "credentials.jpeg",
+    "sections": [
+      {
+        "section_id": "jamf_platform_credentials",
+        "title": "Jamf Platform API",
+        "collapsible": true,
+        "collapsed": false,
+        "test_connection": {
+          "step_id": "jamf_platform_credentials",
+          "label": "Test Connection"
+        },
+        "form_elements": {
+          "form_type": "text_inputs",
+          "form_name": "jamf-platform-form",
+          "fields": [
+            {
+              "id": "jamfplatform_base_url",
+              "name": "jamfplatform_base_url",
+              "type": "select",
+              "label": "API Gateway Region",
+              "required": true,
+              "options": [
+                { "value": "https://apac.api.jamfcloud.com", "label": "Asia Pacific" },
+                { "value": "https://us.api.jamfcloud.com", "label": "United States" },
+                { "value": "https://eu.api.jamfcloud.com", "label": "Europe" }
+              ]
+            },
+            {
+              "id": "jamfplatform_client_id",
+              "name": "jamfplatform_client_id",
+              "type": "text",
+              "label": "Client ID",
+              "required": true,
+              "description": "OAuth2 Client ID from your Jamf Account integration"
+            },
+            {
+              "id": "jamfplatform_client_secret",
+              "name": "jamfplatform_client_secret",
+              "type": "password",
+              "label": "Client Secret",
+              "required": true,
+              "description": "OAuth2 Client Secret from your Jamf Account integration"
+            },
+            {
+              "id": "jamfplatform_environment_id",
+              "name": "jamfplatform_environment_id",
+              "type": "text",
+              "label": "Environment ID",
+              "required": true,
+              "description": "Environment UUID from the Integration details panel in account.jamf.com"
+            }
+          ]
+        }
+      },
+      {
+        "section_id": "jamf_protect_credentials",
+        "title": "Jamf Protect",
+        "collapsible": true,
+        "collapsed": false,
+        "instructions": "Create an API client in your Jamf Protect tenant: **Settings → API Clients → New**. Grant it the **Admin** role. Copy the URL, Client ID and Client Password here.",
+        "form_elements": {
+          "form_type": "text_inputs",
+          "form_name": "jamf-protect-form",
+          "fields": [
+            {
+              "id": "jamfprotect_url",
+              "name": "jamfprotect_url",
+              "type": "text",
+              "label": "Jamf Protect URL",
+              "required": true,
+              "description": "Your Jamf Protect tenant URL, e.g. https://acme.protect.jamfcloud.com"
+            },
+            {
+              "id": "jamfprotect_client_id",
+              "name": "jamfprotect_client_id",
+              "type": "text",
+              "label": "API Client ID",
+              "required": true,
+              "description": "API client ID from Jamf Protect Settings → API Clients"
+            },
+            {
+              "id": "jamfprotect_client_password",
+              "name": "jamfprotect_client_password",
+              "type": "password",
+              "label": "API Client Password",
+              "required": true,
+              "description": "API client password — shown only once at creation time"
+            }
+          ]
+        }
+      }
+    ],
+    "buttons": {
+      "continue_button": {
+        "text": "Continue",
+        "type": "submit",
+        "enabled": true,
+        "css_class": "btn-primary"
+      }
+    },
+    "next_page": "4"
+  },
+
+  "4": {
+    "page_id": "identity_access",
+    "title": "Identity & Access",
+    "description": "Choose how administrators and users authenticate to Jamf Pro.",
+    "page_type": "selection",
+    "background_image": "onboarder.jpeg",
+    "instructions": {
+      "instruction-1": "Select your identity provider. Jamf Pro SAML SSO, directory integration for group lookups, and optional Platform SSO will be configured automatically.",
+      "instruction-2": "⠀",
+      "instruction-3": "**macOS Local Administrator Password Solution (LAPS) is deployed automatically** — no configuration required. Passwords rotate on a 7-day interval and are viewable only by Jamf Pro admins."
+    },
+    "sections": [
+      {
+        "form_elements": {
+          "form_type": "radio_selection",
+          "form_name": "idp-selection-form",
+          "options": [
+            {
+              "id": "idp_choice_microsoft",
+              "name": "idp_choice",
+              "value": "microsoft",
+              "label": "Microsoft Entra ID",
+              "description": "Configures SAML SSO for Jamf Pro enrollment and Self Service, creates an Entra Cloud Identity Provider for group lookups, and optionally deploys Platform SSO (Company Portal + PSSO profile for macOS 14+).",
+              "type": "radio"
+            },
+            {
+              "id": "idp_choice_none",
+              "name": "idp_choice",
+              "value": "none",
+              "label": "None — use Jamf Account admin SSO only",
+              "description": "Keeps the built-in Jamf Account OIDC admin sign-in active. No SAML SSO or directory integration is deployed. You can add an IdP later.",
+              "type": "radio"
+            }
+          ]
+        }
+      }
+    ],
+    "conditional_navigation": {
+      "enabled": true,
+      "navigation_type": "express",
+      "condition_field": "idp_choice",
+      "match_type": "equals",
+      "navigation_rules": {
+        "microsoft": "idp_entra",
+        "none": "5"
+      }
+    }
+  },
+
+  "idp_entra": {
+    "page_id": "idp_entra",
+    "title": "Microsoft Entra ID",
+    "description": "Configure SAML SSO and directory integration for Jamf Pro against a Microsoft Entra ID enterprise application.",
+    "page_type": "form_input_with_sections",
+    "background_image": "credentials.jpeg",
+    "sections": [
+      {
+        "section_id": "entra_saml_credentials",
+        "title": "SAML Configuration",
+        "collapsible": false,
+        "instructions": "In the [Entra portal](https://entra.microsoft.com){target=\"_blank\"}, open **Enterprise Applications** and locate your Jamf Pro SAML app:\n\n1. Go to **Single sign-on → SAML Certificates**\n2. Copy the **App Federation Metadata Url** and paste it below\n\nDon't have an Entra enterprise app yet? Follow the [Jamf Pro SAML connector tutorial](https://learn.microsoft.com/en-us/entra/identity/saas-apps/jamfprosamlconnector-tutorial){target=\"_blank\"} to create one. Skip the 'Configure SSO in Jamf Pro' step — this wizard does that automatically.",
+        "form_elements": {
+          "form_type": "text_inputs",
+          "form_name": "entra-saml-form",
+          "fields": [
+            {
+              "id": "entra_sso_metadata_url",
+              "name": "entra_sso_metadata_url",
+              "type": "text",
+              "label": "App Federation Metadata URL",
+              "required": true,
+              "description": "Format: https://login.microsoftonline.com/&lt;tenant-id&gt;/federationmetadata/2007-06/federationmetadata.xml. The Entra tenant ID is derived automatically from this URL.",
+              "placeholder": "https://login.microsoftonline.com/<tenant-id>/federationmetadata/2007-06/federationmetadata.xml"
+            },
+            {
+              "id": "idp_shortname",
+              "name": "idp_shortname",
+              "type": "text",
+              "label": "Short-name Claim (optional)",
+              "required": false,
+              "description": "Leave empty to match users on email (NameID). Set to 'mailNickName' or 'onPremisesSamAccountName' if your Entra app emits a short-name claim and you want to match on username instead."
+            }
+          ]
+        }
+      },
+      {
+        "section_id": "entra_optional_config",
+        "title": "Optional Integrations",
+        "collapsible": true,
+        "collapsed": false,
+        "form_elements": {
+          "form_type": "checkbox_selection",
+          "form_name": "entra-options-form",
+          "has_info_popups": true,
+          "options": [
+            {
+              "id": "entra_configure_cloud_identity_provider",
+              "name": "entra_configure_cloud_identity_provider",
+              "value": "true",
+              "label": "Configure Entra Directory Connection",
+              "description": "Creates the Entra ID Cloud Identity Provider record in Jamf Pro for group lookups. **After the first apply, an Entra Global Administrator must grant consent** in Jamf Pro Settings → Cloud Identity Provider before group lookups become active.",
+              "checked": true,
+              "type": "checkbox"
+            },
+            {
+              "id": "include_microsoft_psso",
+              "name": "include_microsoft_psso",
+              "value": "true",
+              "label": "Deploy Platform SSO",
+              "description": "Deploys Microsoft Company Portal (package + policy) and the macOS Platform SSO configuration profile. Targets Macs on macOS 14+. No additional inputs required — the PSSO profile is tenant-agnostic.",
+              "checked": false,
+              "type": "checkbox"
+            }
+          ]
+        }
+      }
+    ],
+    "buttons": {
+      "continue_button": {
+        "text": "Continue",
+        "type": "submit",
+        "enabled": true,
+        "css_class": "btn-primary"
+      }
+    },
+    "next_page": "5"
+  },
+
+  "5": {
+    "page_id": "apple_service_tokens",
+    "title": "Apple Service Tokens",
+    "description": "Upload your ADE and VPP tokens from Apple Business or School Manager.",
+    "page_type": "form_input_with_sections",
+    "background_image": "welcome.jpeg",
+    "instructions": {
+      "instruction-1": "Both tokens are optional — leave blank to skip and add them later. The wizard always runs the Apple token module because it exports the public key needed to generate the ADE token in ABM.",
+      "instruction-2": "⠀",
+      "instruction-3": "To obtain tokens, sign into your [Apple Business Manager](https://business.apple.com){target=\"_blank\"} or [Apple School Manager](https://school.apple.com){target=\"_blank\"} portal:\n\n1. From **Device Management Services**, create a new Service using the Public Key supplied earlier and download the server token (.p7m)\n2. From **Payments and Billing**, download the **Content Token** (.vpptoken) for your location"
+    },
+    "sections": [
+      {
+        "section_id": "apple_service_tokens",
+        "collapsible": true,
+        "collapsed": true,
+        "form_elements": {
+          "form_type": "mixed_inputs",
+          "form_name": "apple-tokens-form",
+          "session_key": "apple_service_tokens",
+          "fields": [
+            {
+              "id": "device_enrollment_token_content",
+              "name": "device_enrollment_token_content",
+              "type": "file",
+              "label": "Device Management Service Token",
+              "description": "Upload your Device Management Service Token (.p7m) — required for Automated Device Enrollment",
+              "required": false,
+              "multiple": false,
+              "accept": ".p7m",
+              "upload_config": {
+                "create_tmp_folder": true,
+                "folder_naming": "uuid",
+                "file_naming": "_dep_{original_name}_{uuid}.{extension}"
+              }
+            },
+            {
+              "id": "volume_purchasing_service_token_content",
+              "name": "volume_purchasing_service_token_content",
+              "type": "file",
+              "label": "Content Token (VPP)",
+              "description": "Upload your Content Token (.vpptoken) — required for volume app purchasing and Jamf Trust managed distribution",
+              "required": false,
+              "multiple": false,
+              "accept": ".vpptoken",
+              "upload_config": {
+                "skip_base64_encode": true,
+                "create_tmp_folder": true,
+                "folder_naming": "uuid",
+                "file_naming": "_vpp_{original_name}_{uuid}.{extension}"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "buttons": {
+      "continue_button": {
+        "text": "Deploy",
+        "type": "submit",
+        "enabled": true,
+        "css_class": "btn-primary"
+      }
+    },
+    "next_page": "6"
+  },
+
+  "6": {
+    "page_id": "template_deploy_terraform",
+    "next_page": "7"
+  },
+
+  "7": {
+    "page_id": "completion",
+    "title": "Discovery Workshop Deployed",
+    "description": "Your Jamf management and security baseline is configured. Complete the steps below to begin enrolling devices.",
+    "page_type": "form_input",
+    "prevent_back_button": true,
+    "background_image": "final_steps.jpeg",
+    "instructions": {
+      "instruction-1": "**Required before enrolling devices:**",
+      "instruction-2": "⠀",
+      "instruction-3": "- **Apple Push Notification Certificate** ![expandable]",
+      "instruction-4": "APNs is required before Jamf Pro can send commands to Apple devices. Go to [Settings → Global → Push Certificates](${jamfpro_instance_url}/pushNotificationCertificate.html){target=\"_blank\"} in Jamf Pro to generate and upload your certificate.",
+      "instruction-5": "⠀",
+      "instruction-6": "- **If you configured Microsoft Entra ID** — Entra directory consent ![expandable]",
+      "instruction-7": "An Entra Global Administrator must grant consent for the Cloud Identity Provider connection in Jamf Pro: **Settings → Cloud Identity Provider → your Entra connection → Grant Consent**. Group lookups return nothing until consent is approved.",
+      "instruction-8": "⠀",
+      "instruction-9": "- **Automated Device Enrollment profile** _(if ADE token was uploaded)_ ![expandable]",
+      "instruction-10": "Configure an enrollment profile in Jamf Pro: **Devices → Automated Device Enrollment → New**. Assign it to your MDM server in Apple Business Manager.",
+      "instruction-11": "⠀",
+      "instruction-12": "**What was deployed:**",
+      "instruction-13": "- Mac management foundation — smart groups, inventory settings, computer management settings, Self Service",
+      "instruction-14": "- Mobile management foundation — smart groups, enrollment readiness, Self Service, Jamf Trust app",
+      "instruction-15": "- FileVault 2 with recovery key escrow",
+      "instruction-16": "- Jamf Security Cloud — UEM Connect, ZTNA, Web Protection, App Controls, Removable Storage Controls, Compromised Device Lockdown, Continuous Conditional Access",
+      "instruction-17": "- Jamf Protect — Next-Gen AV, EDR baseline, trial kickstart, 3 inventory extension attributes, PPPC and non-removable system extension profiles",
+      "instruction-18": "- General settings — LAPS, UIE, re-enrollment policy, Self Service+, JCDS, App Installer, Managed Software Update",
+      "instruction-19": "${jamf_protect_deployed_line}",
+      "instruction-20": "⠀",
+      "instruction-21": "**What's next:**",
+      "instruction-22": "- [Jamf AI Assistant](${jamfpro_instance_url}/computers.html){target=\"_blank\"} — available in your Jamf console now, no setup required",
+      "instruction-23": "- Jamf Routines — Compromised Device Lockdown automation workflow is available in your console. Requires 250+ managed devices.",
+      "instruction-24": "- Explore the [Jamf Ecosystem Catalog](https://concepts.jamf.com/en/ecosystem/){target=\"_blank\"} for CrowdStrike, Microsoft Defender, Splunk, Zscaler, and more"
+    }
+  },
+
+  "error": {
+    "page_id": "template_error",
+    "title": "Deployment Error",
+    "description": "Discovery Workshop encountered an error during deployment.",
+    "instructions": {
+      "instruction-1": "No configurations have been deployed to your environment.",
+      "instruction-2": "⠀",
+      "instruction-3": "Please reach out to your Jamf representative or Jamf Support for assistance."
+    }
+  }
+}
