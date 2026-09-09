@@ -1,6 +1,6 @@
 {
   "_comment": "Discovery Workshop Onboarder v2 — Deploys the Jamf Platform API foundation (Mac + Mobile management, FileVault, Jamf Security Cloud, Jamf Protect) against a pre-provisioned demo tenant. Multi-page flow with conditional Entra IdP branch. All module toggles are forced; the wizard collects credentials and IdP selection only.",
-  "terraform_repo": "https://github.com/Jamf-Concepts/terraform-jamf-discovery-workshop",
+  "terraform_repo": "https://github.com/hoarek/terraform-jamf-discovery-workshop",
   "terraform_repo_branch": "main",
   "workflow_file": "terraform-platform.yml",
   "spec_url": "https://raw.githubusercontent.com/Jamf-Concepts/terraform-jamf-discovery-workshop/main/spec.yml",
@@ -371,7 +371,6 @@
               "multiple": false,
               "accept": ".vpptoken",
               "upload_config": {
-                "skip_base64_encode": true,
                 "create_tmp_folder": true,
                 "folder_naming": "uuid",
                 "file_naming": "_vpp_{original_name}_{uuid}.{extension}"
