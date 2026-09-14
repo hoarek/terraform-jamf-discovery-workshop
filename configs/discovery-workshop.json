@@ -403,6 +403,17 @@
     "page_type": "form_input",
     "prevent_back_button": true,
     "background_image": "final_steps.jpeg",
+    "form_elements": {
+      "form_type": "button_actions",
+      "buttons": [
+        {
+          "label": "View Deployment Outcomes Report",
+          "action": "view_outcomes_report",
+          "style": "success",
+          "description": "See every object created and a direct link to it in Jamf Pro."
+        }
+      ]
+    },
     "instructions": {
       "instruction-1": "**Required before enrolling devices:**",
       "instruction-2": "⠀",
