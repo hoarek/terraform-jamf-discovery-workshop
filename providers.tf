@@ -15,8 +15,8 @@ terraform {
   required_version = ">= 1.9"
   required_providers {
     jamfplatform = {
-      source  = "Jamf-Concepts/jamfplatform"
-      version = "~> 0.29"
+      source  = "jamf/jamfplatform"
+      version = "0.32.0"
     }
   }
 }
